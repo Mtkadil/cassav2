@@ -90,7 +90,7 @@ const Logo = ({ size = 80 }: { size?: number }) => {
     <div className="relative group shrink-0">
       <div className="absolute -inset-1 bg-barber-blue/20 rounded-full blur-xl group-hover:bg-barber-blue/30 transition-all" />
       <img 
-        src="/logo.png" 
+        src="/logo.svg" 
         alt="The Prince Logo" 
         onError={() => setError(true)}
         className="relative rounded-full border-2 border-line bg-panel shadow-2xl transition-transform hover:scale-105"
