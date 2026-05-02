@@ -1,0 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", Georgia, serif;
+
+  --color-barber-blue: #2563eb;
+  --color-barber-red: #dc2626;
+  --color-ivory: #f8fafc;
+  --color-ink: #0f172a;
+  --color-panel: #1e293b;
+  --color-line: #334155;
+  --color-gold: #3b82f6;
+  --color-gold-soft: #94a3b8;
+}
+
+@layer base {
+  body {
+    @apply bg-ink text-ivory antialiased min-h-screen text-slate-200;
+    background-image: 
+      radial-gradient(at 50% 0%, rgba(37, 99, 235, 0.1) 0%, transparent 75%),
+      linear-gradient(rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.95));
+  }
+}
+
+@layer components {
+  .divider {
+    @apply flex items-center justify-center gap-4 text-barber-blue font-bold opacity-80;
+  }
+}
+
+.divider::before, .divider::after {
+  @apply content-[""] flex-1 h-[1px];
+  background: linear-gradient(90deg, transparent, #334155, transparent);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-ink;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-line rounded-sm;
+}

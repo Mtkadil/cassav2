@@ -1,0 +1,6 @@
+{
+  "name": "Remix: The Prince Barber Cassa",
+  "description": "Sistema di gestione cassa giornaliera per The Prince Barber Shop, con monitoraggio servizi e incasso in tempo reale.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
