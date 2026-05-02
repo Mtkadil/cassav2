@@ -393,6 +393,11 @@ export default function App() {
                         placeholder="+ Extra (es. 1)"
                         value={extras[s.id]}
                         onChange={(e) => setExtras(prev => ({ ...prev, [s.id]: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            addService(s);
+                          }
+                        }}
                         className="w-full bg-ink/40 border border-line rounded-md py-1.5 px-3 text-[11px] font-bold text-barber-blue outline-none focus:border-barber-red/50 transition-all placeholder:text-slate-600 text-center"
                       />
                     </div>
@@ -435,6 +440,11 @@ export default function App() {
                     placeholder="Importo manuale"
                     value={manualAmount}
                     onChange={(e) => setManualAmount(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        addManual();
+                      }
+                    }}
                     className="flex-1 bg-transparent border-none py-4 text-sm font-medium text-ivory outline-none placeholder:text-slate-600 tracking-wide"
                   />
                 </div>
