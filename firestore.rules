@@ -6,67 +6,24 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Common helpers
-    function isSignedIn() {
-      return request.auth != null;
+    // Helper per validare la struttura dati
+    function isValidSession(data) {
+      return data.keys().hasAll(['date', 'counts', 'history', 'totalIncome', 'totalClients', 'updatedAt'])
+        && data.date is string
+        && data.counts is map
+        && data.history is list
+        && data.totalIncome is number
+        && data.totalClients is number;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-    
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    // Permettiamo l'accesso alla sessione condivisa senza login
+    match /sessions/shared_session {
+      allow read, write: if true; 
     }
 
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
-    // Sessions: Real-time cassa data
-    // Path: sessions/{sessionId} where sessionId is usually date
-    match /sessions/{sessionId} {
-      function isValidSession(data) {
-        return data.keys().hasAll(['date', 'counts', 'history', 'totalIncome', 'totalClients', 'updatedAt', 'ownerUid'])
-          && data.ownerUid == request.auth.uid
-          && data.date is string
-          && data.counts is map
-          && data.history is list
-          && data.totalIncome is number
-          && data.totalClients is number
-          && data.updatedAt is timestamp;
-      }
-
-      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
-      allow create: if isSignedIn() && isValidSession(incoming());
-      allow update: if isSignedIn() 
-        && incoming().ownerUid == existing().ownerUid
-        && isValidSession(incoming());
-      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
-    }
-
-    // Logs: Archived data
+    // Log storici (per l'archivio)
     match /logs/{logId} {
-      function isValidLog(data) {
-        return data.keys().hasAll(['date', 'displayDate', 'total', 'clients', 'counts', 'timestamp', 'ownerUid'])
-          && data.ownerUid == request.auth.uid
-          && data.date is string
-          && data.displayDate is string
-          && data.total is number
-          && data.clients is number
-          && data.counts is map
-          && data.timestamp is number;
-      }
-
-      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
-      allow create: if isSignedIn() && isValidLog(incoming());
-      allow update: if isSignedIn() 
-        && incoming().ownerUid == existing().ownerUid
-        && isValidLog(incoming());
+      allow read, write: if true;
     }
   }
 }

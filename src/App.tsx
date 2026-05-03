@@ -21,9 +21,8 @@ import {
   Smartphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth, db, signInWithGoogle } from './lib/firebase';
-import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, deleteDoc } from 'firebase/firestore';
+import { db } from './lib/firebase';
+import { doc, onSnapshot, setDoc, serverTimestamp, collection, query, orderBy, limit, deleteDoc, where } from 'firebase/firestore';
 
 enum OperationType {
   CREATE = 'create',
@@ -50,10 +49,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
+      userId: "public",
     },
     operationType,
     path
@@ -106,6 +102,7 @@ const SERVICES: Service[] = [
   { id: 'barba_standard', label: 'Barba Std', price: 8, icon: <div className="font-serif italic text-lg leading-none text-gold-soft">S</div> },
 ];
 
+const SHARED_SESSION_ID = 'shared_session';
 const TODAY = new Date().toLocaleDateString('it-IT');
 
 // --- Components ---
@@ -160,8 +157,7 @@ const BarberPole = () => (
 );
 
 export default function App() {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [view, setView] = useState<'cassa' | 'archivio'>('cassa');
   const [counts, setCounts] = useState<Record<ServiceId, number>>({
     taglio: 0,
@@ -179,55 +175,37 @@ export default function App() {
   });
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [manualAmount, setManualAmount] = useState("");
-  const [isLoaded, setIsLoaded] = useState(false);
 
-  // Auth Observer
+  // Sync Daily Data (Shared Session)
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setAuthLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Sync Daily Data (Today's Session)
-  useEffect(() => {
-    if (!user) return;
-
-    const docId = `${user.uid}_${TODAY.replace(/\//g, '-')}`;
-    const docRef = doc(db, 'sessions', docId);
+    const docRef = doc(db, 'sessions', SHARED_SESSION_ID);
 
     const unsubscribe = onSnapshot(docRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        setCounts(data.counts);
-        setHistory(data.history);
-      } else {
-        // First time today? Reset local state if it's a new day
-        setCounts({ taglio: 0, taglio_barba: 0, barba_gold: 0, barba_standard: 0 });
-        setHistory([]);
+        if (data.date === TODAY) {
+          setCounts(data.counts);
+          setHistory(data.history);
+        } else {
+          setCounts({ taglio: 0, taglio_barba: 0, barba_gold: 0, barba_standard: 0 });
+          setHistory([]);
+        }
       }
       setIsLoaded(true);
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `sessions/${docId}`);
+      handleFirestoreError(error, OperationType.GET, `sessions/${SHARED_SESSION_ID}`);
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, []);
 
   // Sync Logs (Historical Data)
   useEffect(() => {
-    if (!user) return;
-
-    const q = query(
-      collection(db, 'logs'),
-      // Ordinamento rimosso se non ci sono indici, ma possiamo filtrare per ownerUid
-    );
+    const q = query(collection(db, 'logs'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedLogs = snapshot.docs
         .map(doc => doc.data() as DailyLog)
-        .filter(log => log.ownerUid === user.uid)
         .sort((a, b) => b.timestamp - a.timestamp);
       
       setLogs(fetchedLogs);
@@ -236,13 +214,11 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, []);
 
   // Helper to persist session to Firestore
   const syncToFirestore = async (newCounts: Record<ServiceId, number>, newHistory: HistoryItem[]) => {
-    if (!user) return;
-    const docId = `${user.uid}_${TODAY.replace(/\//g, '-')}`;
-    const docRef = doc(db, 'sessions', docId);
+    const docRef = doc(db, 'sessions', SHARED_SESSION_ID);
 
     const totalInc = newHistory.reduce((acc, item) => acc + item.price, 0);
     const serviceClients = (Object.values(newCounts) as number[]).reduce((a, b) => a + b, 0);
@@ -259,10 +235,9 @@ export default function App() {
         totalIncome: totalInc,
         totalClients: totalCli,
         updatedAt: serverTimestamp(),
-        ownerUid: user.uid
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `sessions/${docId}`);
+      handleFirestoreError(error, OperationType.WRITE, `sessions/${SHARED_SESSION_ID}`);
     }
   };
 
@@ -343,7 +318,6 @@ export default function App() {
   };
 
   const archiveDay = async () => {
-    if (!user) return;
     if (totalIncome === 0 && totalClients === 0) {
       resetDay();
       return;
@@ -356,23 +330,23 @@ export default function App() {
       clients: totalClients,
       counts: { ...counts },
       timestamp: Date.now(),
-      ownerUid: user.uid
+      ownerUid: "shared"
     };
 
     // 1. Save to logs
-    const logId = `${user.uid}_${Date.now()}`;
+    const logId = `shared_${Date.now()}`;
     try {
-      await setDoc(doc(db, 'logs', logId), { ...newLog, ownerUid: user.uid });
+      await setDoc(doc(db, 'logs', logId), newLog);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `logs/${logId}`);
     }
 
     // 2. Clear current session in DB
-    const docId = `${user.uid}_${TODAY.replace(/\//g, '-')}`;
+    const docRef = doc(db, 'sessions', SHARED_SESSION_ID);
     try {
-      await deleteDoc(doc(db, 'sessions', docId));
+      await deleteDoc(docRef);
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `sessions/${docId}`);
+      handleFirestoreError(error, OperationType.DELETE, `sessions/${SHARED_SESSION_ID}`);
     }
 
     resetDay();
@@ -404,7 +378,7 @@ export default function App() {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
 
-  if (authLoading) {
+  if (!isLoaded) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-ink">
         <div className="flex flex-col items-center gap-4">
@@ -415,52 +389,6 @@ export default function App() {
             className="w-6 h-6 border-2 border-barber-blue border-t-transparent rounded-full"
           />
         </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-ink px-6 text-center">
-        <header className="mb-12">
-          <div className="flex justify-center items-center gap-4 mb-8">
-            <BarberPole />
-            <Logo size={120} />
-            <BarberPole />
-          </div>
-          <h1 className="font-serif text-4xl font-black text-ivory tracking-tighter mb-2">The Prince</h1>
-          <p className="text-xs tracking-[0.4em] uppercase text-barber-blue font-bold opacity-80">Gestione Cassa</p>
-        </header>
-
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-sm space-y-6"
-        >
-          <div className="bg-panel border border-line p-8 rounded-2xl shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-barber-red via-white to-barber-blue opacity-50" />
-            <p className="text-sm text-slate-400 mb-8 leading-relaxed">
-              Accedi con il tuo account Google per gestire la cassa e salvare i dati in tempo reale sul cloud.
-            </p>
-            <button 
-              onClick={signInWithGoogle}
-              className="w-full py-4 px-6 bg-ivory text-ink font-bold rounded-xl flex items-center justify-center gap-3 hover:bg-slate-200 transition-all active:scale-95 shadow-lg group"
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-              </svg>
-              Continua con Google
-            </button>
-          </div>
-          
-          <div className="flex items-center justify-center gap-4 text-slate-600">
-            <Smartphone className="w-4 h-4" />
-            <span className="text-[10px] uppercase tracking-widest font-bold">Ottimizzato per Mobile</span>
-          </div>
-        </motion.div>
       </div>
     );
   }
@@ -504,14 +432,6 @@ export default function App() {
                 <BarberPole />
                 <Logo size={96} />
                 <BarberPole />
-                
-                <button 
-                  onClick={() => signOut(auth)}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 p-2 bg-ink/40 text-slate-500 hover:text-barber-red rounded-lg border border-line transition-all active:scale-90"
-                  title="Esci"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
               </div>
               
               <div className="divider w-64 mx-auto mb-3">
