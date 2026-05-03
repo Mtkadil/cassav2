@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "Session": {
+      "title": "Daily Session",
+      "description": "Data for a single day of work",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "counts": { "type": "object" },
+        "history": { "type": "array" },
+        "totalIncome": { "type": "number" },
+        "totalClients": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "ownerUid": { "type": "string" }
+      },
+      "required": ["date", "counts", "history", "totalIncome", "totalClients", "updatedAt", "ownerUid"]
+    },
+    "Log": {
+      "title": "Daily Log",
+      "description": "Archived summary of a day",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "displayDate": { "type": "string" },
+        "total": { "type": "number" },
+        "clients": { "type": "number" },
+        "counts": { "type": "object" },
+        "timestamp": { "type": "number" },
+        "ownerUid": { "type": "string" }
+      },
+      "required": ["date", "displayDate", "total", "clients", "counts", "timestamp", "ownerUid"]
+    }
+  },
+  "firestore": {
+    "sessions/{date}": {
+      "schema": "Session",
+      "description": "Real-time state for today's cassa"
+    },
+    "logs/{date}": {
+      "schema": "Log",
+      "description": "Archived daily summaries"
+    }
+  }
+}
