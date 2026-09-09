@@ -96,7 +96,7 @@ interface AppState {
 }
 
 const SERVICES: Service[] = [
-  { id: 'taglio', label: 'Taglio', price: 12, icon: <Scissors className="w-5 h-5" /> },
+  { id: 'taglio', label: 'Taglio', price: 15, icon: <Scissors className="w-5 h-5" /> },
   { id: 'taglio_barba', label: 'Taglio & Barba', price: 18, icon: <Wind className="w-5 h-5" /> },
   { id: 'barba_gold', label: 'Barba Gold', price: 10, icon: <div className="font-serif italic text-lg leading-none">G</div> },
   { id: 'barba_standard', label: 'Barba Std', price: 8, icon: <div className="font-serif italic text-lg leading-none text-gold-soft">S</div> },
